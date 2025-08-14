@@ -1,6 +1,6 @@
 // Generate URL for Dust Busters Plus crew
 function generateDustBustersUrl() {
-  const baseUrl = 'https://joonk4ng.github.io';
+  const baseUrl = 'https://jobs-prog-test.github.io';
   const params = new URLSearchParams();
   
   // Crew Information
@@ -49,7 +49,7 @@ console.log('Dust Busters Plus URL:');
 console.log(url);
 
 // Also create a simpler URL with just crew info
-const simpleUrl = `https://joonk4ng.github.io?crewName=${encodeURIComponent('Dust Busters Plus')}&crewNumber=${encodeURIComponent('C69')}&fireName=${encodeURIComponent('2025 RMA Preposition')}&fireNumber=${encodeURIComponent('CO RMC 250002')}`;
+const simpleUrl = `https://jobs-prog-test.github.io?crewName=${encodeURIComponent('Dust Busters Plus')}&crewNumber=${encodeURIComponent('C69')}&fireName=${encodeURIComponent('2025 RMA Preposition')}&fireNumber=${encodeURIComponent('CO RMC 250002')}`;
 
 console.log('\nSimple URL (crew info only):');
 console.log(simpleUrl); 

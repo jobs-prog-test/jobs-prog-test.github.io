@@ -17,7 +17,7 @@ export interface CrewParams {
 
 /**
  * Parse URL parameters to extract crew information
- * Example URL: https://joonk4ng.github.io?crewName=Alpha%20Crew&crewNumber=A1&fireName=Smith%20Fire&fireNumber=2024-001&date=2024-01-15%20to%202024-01-16
+ * Example URL: https://jobs-prog-test.github.io?crewName=Alpha%20Crew&crewNumber=A1&fireName=Smith%20Fire&fireNumber=2024-001&date=2024-01-15%20to%202024-01-16
  */
 export function parseCrewParams(): CrewParams {
   const urlParams = new URLSearchParams(window.location.search);
@@ -115,7 +115,7 @@ export function validateCrewParams(params: CrewParams): { isValid: boolean; erro
  * This function can be used by admins to create pre-filled links
  */
 export function generateAdminLinks(): Record<string, string> {
-  const baseUrl = 'https://joonk4ng.github.io';
+  const baseUrl = 'https://jobs-prog-test.github.io';
   
   return {
     'Alpha Crew - Smith Fire': `${baseUrl}?crewName=Alpha%20Crew&crewNumber=A1&fireName=Smith%20Fire&fireNumber=2024-001&date=2024-01-15%20to%202024-01-16`,
