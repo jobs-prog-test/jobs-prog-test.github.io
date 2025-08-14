@@ -8,7 +8,7 @@ import { generateExportFilename } from '../utils/filenameGenerator';
 
 // Configure PDF.js worker
 if (typeof window !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.mjs';
+  pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 }
 
 // Configure PDF.js options for small PDFs
@@ -30,6 +30,8 @@ interface EnhancedPDFViewerProps {
   pdfId?: string;
   // Callback function for saving the PDF
   onSave?: (pdfData: Blob, previewImage: Blob) => void;
+  // Callback function called before signing (for sneaky save)
+  onBeforeSign?: () => Promise<void>;
   // Class name for the component
   className?: string;
   // Style for the component
@@ -47,6 +49,7 @@ interface EnhancedPDFViewerProps {
 const EnhancedPDFViewer: React.FC<EnhancedPDFViewerProps> = ({
   pdfId,
   onSave,
+  onBeforeSign,
   className,
   style,
   readOnly = false,
@@ -60,13 +63,30 @@ const EnhancedPDFViewer: React.FC<EnhancedPDFViewerProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [drawColor, setDrawColor] = useState('#000000');
-  const [drawWidth, setDrawWidth] = useState(2);
   const [isSigned, setIsSigned] = useState(false);
   const [signedPdfBlob, setSignedPdfBlob] = useState<Blob | null>(null);
   const lastPosRef = useRef<{ x: number; y: number } | null>(null);
   const renderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isDrawingMode, setIsDrawingMode] = useState(false);
+
+  // Detect Chrome on iOS
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isChrome = /Chrome/.test(navigator.userAgent);
+  const isChromeIOS = isIOS && isChrome;
+
+  // Log platform info for debugging
+  useEffect(() => {
+    console.log('🔍 EnhancedPDFViewer: Platform Info:', {
+      isIOS,
+      isChrome,
+      isChromeIOS,
+      userAgent: navigator.userAgent
+    });
+    
+    if (isChromeIOS) {
+      console.log('🔍 EnhancedPDFViewer: Chrome on iOS detected - applying special handling');
+    }
+  }, [isIOS, isChrome, isChromeIOS]);
 
   const renderPDF = useCallback(async (pdfDoc: pdfjsLib.PDFDocumentProxy) => {
     if (!canvasRef.current || !drawCanvasRef.current) return;
@@ -81,9 +101,7 @@ const EnhancedPDFViewer: React.FC<EnhancedPDFViewerProps> = ({
         willReadFrequently: false  // Optimize for write-only operations
       });
       
-      // retrieves the draw canvas
       const drawCanvas = drawCanvasRef.current;
-      // retrieves the drawing context
       const drawContext = drawCanvas.getContext('2d', {
         alpha: true,
         willReadFrequently: true  // Drawing needs read operations
@@ -99,16 +117,10 @@ const EnhancedPDFViewer: React.FC<EnhancedPDFViewerProps> = ({
       if (container) {
         const containerWidth = container.clientWidth;
         const containerHeight = container.clientHeight;
-        
-        // For signing purposes, we want the PDF to be as large as possible
-        // Calculate scales for both width and height
-        const scaleWidth = containerWidth / viewport.width;
-        const scaleHeight = containerHeight / viewport.height;
-        
-        // Use the larger scale to maximize PDF size for better signing experience
-        // But ensure it doesn't exceed container bounds and cap at 200% for usability
-        const scale = Math.min(Math.max(scaleWidth, scaleHeight), 2.0);
-        
+        const scale = Math.min(
+          containerWidth / viewport.width,
+          containerHeight / viewport.height
+        );
         viewport.scale = scale;
       }
       
@@ -130,7 +142,6 @@ const EnhancedPDFViewer: React.FC<EnhancedPDFViewerProps> = ({
       }).promise;
 
       setIsLoading(false);
-    // return error messages
     } catch (err) {
       console.error('Error rendering page:', err);
       setError('Failed to render page. Please try again.');
@@ -152,12 +163,10 @@ const EnhancedPDFViewer: React.FC<EnhancedPDFViewerProps> = ({
       }
     };
 
-    // add event listeners for the touch events
     container.addEventListener('touchstart', preventDefault, options);
     container.addEventListener('touchmove', preventDefault, options);
     container.addEventListener('touchend', preventDefault, options);
 
-    // return a function to clean up the event listeners
     return () => {
       container.removeEventListener('touchstart', preventDefault);
       container.removeEventListener('touchmove', preventDefault);
@@ -165,19 +174,11 @@ const EnhancedPDFViewer: React.FC<EnhancedPDFViewerProps> = ({
     };
   }, [isDrawingMode]);
 
-
-
-  // function to get the touch position
   const getTouchPos = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    // if the draw canvas is not ready, return 0,0
     if (!drawCanvasRef.current) return { x: 0, y: 0 };
-    // retrieves the touch
     const touch = e.touches[0];
-    // retrieves the bounding client rect
     const rect = drawCanvasRef.current.getBoundingClientRect();
-    // retrieves the scale
     const scaleX = drawCanvasRef.current.width / rect.width;
-    // retrieves the scale
     const scaleY = drawCanvasRef.current.height / rect.height;
     return {
       x: (touch.clientX - rect.left) * scaleX,
@@ -189,11 +190,8 @@ const EnhancedPDFViewer: React.FC<EnhancedPDFViewerProps> = ({
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (!drawCanvasRef.current || !isDrawingMode) return;
     
-    // retrieves the position
     let pos;
-    // if the event is a touch event, get the touch position
     if ('touches' in e) {
-      // get the touch position
       pos = getTouchPos(e as React.TouchEvent<HTMLCanvasElement>);
     } else {
       const rect = drawCanvasRef.current.getBoundingClientRect();
@@ -212,13 +210,10 @@ const EnhancedPDFViewer: React.FC<EnhancedPDFViewerProps> = ({
   const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (!isDrawing || !drawCanvasRef.current || !lastPosRef.current || !isDrawingMode) return;
     
-    // retrieves the current position
     let currentPos;
-    // if the event is a touch event, get the touch position
     if ('touches' in e) {
       currentPos = getTouchPos(e as React.TouchEvent<HTMLCanvasElement>);
     } else {
-      // if the event is a mouse event, get the mouse position
       const rect = drawCanvasRef.current.getBoundingClientRect();
       const scaleX = drawCanvasRef.current.width / rect.width;
       const scaleY = drawCanvasRef.current.height / rect.height;
@@ -228,21 +223,17 @@ const EnhancedPDFViewer: React.FC<EnhancedPDFViewerProps> = ({
       };
     }
 
-    // retrieves the context
     const ctx = drawCanvasRef.current.getContext('2d');
     if (!ctx) return;
 
-    // begins the path
     ctx.beginPath();
-    // sets the stroke style
-    ctx.strokeStyle = drawColor;
-    ctx.lineWidth = drawWidth;
+    ctx.strokeStyle = '#000000'; // Default black color
+    ctx.lineWidth = 2; // Default line width
     ctx.lineCap = 'round';
     ctx.moveTo(lastPosRef.current.x, lastPosRef.current.y);
     ctx.lineTo(currentPos.x, currentPos.y);
     ctx.stroke();
 
-    // updates the last position
     lastPosRef.current = currentPos;
   };
 
@@ -255,25 +246,20 @@ const EnhancedPDFViewer: React.FC<EnhancedPDFViewerProps> = ({
   // clears the drawing
   const clearDrawing = () => {
     setIsDrawingMode(false);
-    // retrieves the canvas
     const canvas = drawCanvasRef.current;
     if (!canvas) return;
-    // retrieves the context
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    // clears the drawing
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   };
 
-  // function to handle the saving of the PDF with the signature
+  // Handles the saving of the PDF with the signature
   const handleSave = async () => {
-    // sets the drawing mode to false
     setIsDrawingMode(false);
-    // if the canvas is not ready, return
     if (!canvasRef.current || !drawCanvasRef.current || !onSave || !pdfDocRef.current) return;
 
     try {
-      // retrieves both canvases
+      // Get both canvases
       const baseCanvas = canvasRef.current;
       const drawCanvas = drawCanvasRef.current;
 
@@ -282,8 +268,7 @@ const EnhancedPDFViewer: React.FC<EnhancedPDFViewerProps> = ({
       tempCanvas.width = baseCanvas.width;
       tempCanvas.height = baseCanvas.height;
       const tempCtx = tempCanvas.getContext('2d');
-
-      // if the context is not ready, return
+      
       if (!tempCtx) return;
 
       // Draw the base PDF
@@ -308,10 +293,33 @@ const EnhancedPDFViewer: React.FC<EnhancedPDFViewerProps> = ({
       // Convert the original PDF to Uint8Array
       const pdfBytes = await pdfDocRef.current.getData();
       
+      // Debug: Check the original PDF content before processing
+      console.log('🔍 EnhancedPDFViewer: Original PDF bytes length:', pdfBytes.length);
+      
       // Load the PDF with pdf-lib
       const pdfDoc = await PDFDocument.load(pdfBytes);
       const pages = pdfDoc.getPages();
       const firstPage = pages[0];
+
+      // Debug: Check if the PDF has form fields and their content
+      let originalFieldValues: Record<string, string> = {};
+      try {
+        const form = pdfDoc.getForm();
+        const fields = form.getFields();
+        console.log('🔍 EnhancedPDFViewer: PDF form fields after loading:', fields.map(f => f.getName()));
+        
+        // Store original field values to preserve them
+        fields.forEach(field => {
+          if (field.getName().includes('CATION')) {
+            const textField = form.getTextField(field.getName());
+            const fieldValue = textField.getText();
+            originalFieldValues[field.getName()] = fieldValue || '';
+            console.log(`🔍 EnhancedPDFViewer: Classification field ${field.getName()} = "${fieldValue || ''}" (length: ${fieldValue?.length || 0})`);
+          }
+        });
+      } catch (e) {
+        console.log('🔍 EnhancedPDFViewer: No form fields found or error accessing them:', e);
+      }
 
       // Convert PNG blob to Uint8Array
       const annotationBytes = new Uint8Array(await annotationImage.arrayBuffer());
@@ -331,10 +339,108 @@ const EnhancedPDFViewer: React.FC<EnhancedPDFViewerProps> = ({
         opacity: 1,
       });
 
+      // Debug: Check form fields after adding annotation
+      try {
+        const form = pdfDoc.getForm();
+        const fields = form.getFields();
+        
+        // Restore original field values to prevent truncation
+        Object.entries(originalFieldValues).forEach(([fieldName, originalValue]) => {
+          try {
+            const textField = form.getTextField(fieldName);
+            const currentValue = textField.getText();
+            if (currentValue !== originalValue) {
+              console.log(`🔍 EnhancedPDFViewer: Restoring field ${fieldName} from "${currentValue}" to "${originalValue}"`);
+              textField.setText(originalValue);
+            }
+          } catch (e) {
+            console.log(`🔍 EnhancedPDFViewer: Error restoring field ${fieldName}:`, e);
+          }
+        });
+        
+        fields.forEach(field => {
+          if (field.getName().includes('CATION')) {
+            const textField = form.getTextField(field.getName());
+            const fieldValue = textField.getText();
+            console.log(`🔍 EnhancedPDFViewer: Classification field ${field.getName()} after annotation = "${fieldValue || ''}" (length: ${fieldValue?.length || 0})`);
+          }
+        });
+      } catch (e) {
+        console.log('🔍 EnhancedPDFViewer: Error checking fields after annotation:', e);
+      }
+
+      // iOS WebKit specific handling - preserve field values before final save
+      if (isIOS) {
+        console.log('🔍 EnhancedPDFViewer: iOS WebKit - preserving field values before final save');
+        
+        try {
+          // Get the form from the PDF document
+          const form = pdfDoc.getForm();
+          
+          // Restore all original field values one more time before saving
+          Object.entries(originalFieldValues).forEach(([fieldName, originalValue]) => {
+            try {
+              const textField = form.getTextField(fieldName);
+              const currentValue = textField.getText();
+              if (currentValue !== originalValue) {
+                console.log(`🔍 EnhancedPDFViewer: iOS WebKit - final restore of field ${fieldName} from "${currentValue}" to "${originalValue}"`);
+                textField.setText(originalValue);
+              }
+            } catch (e) {
+              console.log(`🔍 EnhancedPDFViewer: iOS WebKit - error in final restore of field ${fieldName}:`, e);
+            }
+          });
+        } catch (e) {
+          console.log('🔍 EnhancedPDFViewer: iOS WebKit - error in final field preservation:', e);
+        }
+      }
+
       // Save the PDF
       const modifiedPdfBytes = await pdfDoc.save();
       const modifiedPdfBlob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
       
+      console.log('🔍 EnhancedPDFViewer: Modified PDF bytes length:', modifiedPdfBytes.length);
+      
+      // iOS WebKit specific verification after final save
+      if (isIOS) {
+        console.log('🔍 EnhancedPDFViewer: iOS WebKit - verifying final PDF content before download');
+        
+        try {
+          // Load the final PDF and verify classification fields
+          const finalPdfDoc = await PDFDocument.load(modifiedPdfBytes);
+          const finalForm = finalPdfDoc.getForm();
+          const finalFields = finalForm.getFields();
+          
+          let finalVerificationPassed = true;
+          finalFields.forEach(field => {
+            if (field.getName().includes('CATION')) {
+              const textField = finalForm.getTextField(field.getName());
+              const fieldValue = textField.getText();
+              console.log(`🔍 EnhancedPDFViewer: iOS WebKit final verification - ${field.getName()} = "${fieldValue || ''}" (length: ${fieldValue?.length || 0})`);
+              
+              // Check if this field should have data (first two rows)
+              const rowNum = field.getName().match(/Row(\d+)/)?.[1];
+              if (rowNum && (rowNum === '1' || rowNum === '2')) {
+                // Get the original data from the crew info or stored data
+                const expectedData = originalFieldValues[field.getName()];
+                if (expectedData && fieldValue !== expectedData) {
+                  console.warn(`🔍 EnhancedPDFViewer: iOS WebKit final verification FAILED - ${field.getName()} expected "${expectedData}" but got "${fieldValue}"`);
+                  finalVerificationPassed = false;
+                }
+              }
+            }
+          });
+          
+          if (finalVerificationPassed) {
+            console.log('🔍 EnhancedPDFViewer: iOS WebKit final verification PASSED');
+          } else {
+            console.warn('🔍 EnhancedPDFViewer: iOS WebKit final verification FAILED - some fields were truncated during final save');
+          }
+        } catch (e) {
+          console.log('🔍 EnhancedPDFViewer: iOS WebKit final verification error:', e);
+        }
+      }
+
       // Set the signed state and store the signed PDF blob
       setIsSigned(true);
       setSignedPdfBlob(modifiedPdfBlob);
@@ -360,6 +466,9 @@ const EnhancedPDFViewer: React.FC<EnhancedPDFViewerProps> = ({
         link.download = 'signed_document.pdf';
       }
       
+      console.log('🔍 EnhancedPDFViewer: Downloading PDF with filename:', link.download);
+      console.log('🔍 EnhancedPDFViewer: PDF blob size:', modifiedPdfBlob.size, 'bytes');
+      
       // Trigger the download
       document.body.appendChild(link);
       link.click();
@@ -374,7 +483,6 @@ const EnhancedPDFViewer: React.FC<EnhancedPDFViewerProps> = ({
     }
   };
 
-  // function to handle the downloading of the PDF (unused)
   const handleDownload = async () => {
     setIsDrawingMode(false);
     if (!pdfDocRef.current) return;
@@ -417,7 +525,6 @@ const EnhancedPDFViewer: React.FC<EnhancedPDFViewerProps> = ({
     }
   };
 
-  // function to handle the printing of the PDF (unused)
   const handlePrint = async () => {
     setIsDrawingMode(false);
     if (!pdfDocRef.current) {
@@ -513,8 +620,17 @@ const EnhancedPDFViewer: React.FC<EnhancedPDFViewerProps> = ({
     }
   };
 
-  // function to activate the drawing mode when the button is clicked
-  const toggleDrawingMode = () => {
+  const toggleDrawingMode = async () => {
+    // If we're about to enable drawing mode and there's a sneaky save callback, call it
+    if (!isDrawingMode && onBeforeSign) {
+      try {
+        await onBeforeSign();
+      } catch (error) {
+        console.error('Error during sneaky save before signing:', error);
+        // Continue with signing even if sneaky save fails
+      }
+    }
+    
     setIsDrawingMode(prev => !prev);
     // Clear any existing drawing when toggling mode
     if (drawCanvasRef.current) {
@@ -528,22 +644,17 @@ const EnhancedPDFViewer: React.FC<EnhancedPDFViewerProps> = ({
     lastPosRef.current = null;
   };
 
-  // use effect to load the PDF
   useEffect(() => {
     let mounted = true;
     let currentPdf: pdfjsLib.PDFDocumentProxy | null = null;
 
-    // function to load the PDF
     const loadPDF = async () => {
       if (!pdfId) return;
 
       try {
-        // sets the loading state to true
         setIsLoading(true);
-        // sets the error to null
         setError(null);
         
-        // retrieves the stored PDF
         const storedPDF = await getPDF(pdfId);
         if (!storedPDF || !mounted) return;
 
@@ -557,10 +668,8 @@ const EnhancedPDFViewer: React.FC<EnhancedPDFViewerProps> = ({
           ...pdfOptions
         });
         
-        // loads the PDF
         const pdf = await loadingTask.promise;
         
-        // if the PDF is not mounted, destroy the PDF and return
         if (!mounted) {
           pdf.destroy();
           return;
@@ -601,81 +710,53 @@ const EnhancedPDFViewer: React.FC<EnhancedPDFViewerProps> = ({
 
   return (
     <div className={`enhanced-pdf-viewer ${className || ''}`} style={style} ref={containerRef}>
-      <div 
-        className="canvas-container"
-        style={{ 
-          width: '100%', 
-          height: '100%', 
-          overflow: 'auto',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center', // Center for better vertical centering
-          padding: '20px', // Add padding to prevent PDF from touching edges
-          position: 'relative'
-        }}
-      >
+      <div className="canvas-container">
         {error && <div className="error-message">{error}</div>}
         {isLoading && <div className="loading">Loading PDF...</div>}
-        <canvas 
-          ref={canvasRef} 
-          className="pdf-canvas"
-          style={{
-            maxWidth: '100%',
-            maxHeight: '100%',
-            objectFit: 'contain'
-          }}
-        />
+        <canvas ref={canvasRef} className="pdf-canvas" />
         {!readOnly && (
-          <canvas
-            ref={drawCanvasRef}
-            className="draw-canvas"
-            style={{ 
-              pointerEvents: isDrawingMode ? 'auto' : 'none',
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              maxWidth: '100%',
-              maxHeight: '100%'
-            }}
-            onMouseDown={startDrawing}
-            onMouseMove={draw}
-            onMouseUp={stopDrawing}
-            onMouseLeave={stopDrawing}
-            onTouchStart={startDrawing}
-            onTouchMove={draw}
-            onTouchEnd={stopDrawing}
-          />
+          <>
+            <canvas
+              ref={drawCanvasRef}
+              className="draw-canvas"
+              style={{ pointerEvents: isDrawingMode ? 'auto' : 'none' }}
+              onMouseDown={startDrawing}
+              onMouseMove={draw}
+              onMouseUp={stopDrawing}
+              onMouseLeave={stopDrawing}
+              onTouchStart={startDrawing}
+              onTouchMove={draw}
+              onTouchEnd={stopDrawing}
+            />
+            <div className="toolbar">
+              <button
+                onClick={toggleDrawingMode}
+                className={`draw-btn ${isDrawingMode ? 'active' : ''}`}
+                title="Sign"
+              >
+                <svg viewBox="0 0 24 24" width="24" height="24">
+                  <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                </svg>
+                Sign
+              </button>
+              <button onClick={handleSave} className="save-btn" title="Finished">
+                <svg viewBox="0 0 24 24" width="24" height="24">
+                  <path fill="currentColor" d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
+                </svg>
+                Finished
+              </button>
+              <button onClick={clearDrawing} className="clear-btn" title="Undo">
+                <svg viewBox="0 0 24 24" width="24" height="24">
+                  <path fill="currentColor" d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/>
+                </svg>
+                Undo
+              </button>
+            </div>
+          </>
         )}
       </div>
-      
-      {/* Move toolbar outside canvas container to avoid zoom issues */}
-      {!readOnly && (
-        <div className="toolbar fixed-toolbar">
-          <button
-            onClick={toggleDrawingMode}
-            className={`draw-btn ${isDrawingMode ? 'active' : ''}`}
-            title="Sign"
-          >
-            <svg viewBox="0 0 24 24" width="24" height="24">
-              <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-            </svg>
-            Sign
-          </button>
-          <button onClick={handleSave} className="save-btn" title="Finished">
-            <svg viewBox="0 0 24 24" width="24" height="24">
-              <path fill="currentColor" d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
-            </svg>
-            Finished
-          </button>
-          <button onClick={clearDrawing} className="clear-btn" title="Undo">
-            <svg viewBox="0 0 24 24" width="24" height="24">
-              <path fill="currentColor" d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/>
-            </svg>
-            Undo
-          </button>
-        </div>
-      )}
+
+
     </div>
   );
 };

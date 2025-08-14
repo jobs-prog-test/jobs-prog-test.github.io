@@ -1,16 +1,20 @@
+// microservice handler for database initialization
 import React, { useState, useEffect } from 'react';
 import { databaseManager } from '../db/databaseManager';
 
+// DatabaseInitializerProps interface
 interface DatabaseInitializerProps {
   children: React.ReactNode;
   onReady?: () => void;
   onError?: (error: Error) => void;
 }
 
+// DatabaseInitializer component
 export function DatabaseInitializer({ children, onReady, onError }: DatabaseInitializerProps) {
   const [isInitializing, setIsInitializing] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
+  // use effect to initialize the database
   useEffect(() => {
     async function initDatabase() {
       try {
@@ -26,6 +30,7 @@ export function DatabaseInitializer({ children, onReady, onError }: DatabaseInit
           throw new Error('Database failed to initialize');
         }
         
+        // Set the database to ready
         setIsInitializing(false);
         onReady?.();
       } catch (err) {
@@ -39,12 +44,13 @@ export function DatabaseInitializer({ children, onReady, onError }: DatabaseInit
 
     initDatabase();
 
-    // Cleanup
+    // Cleanup function to close the database
     return () => {
       databaseManager.closeDatabase().catch(console.error);
     };
   }, [onReady, onError]);
 
+  // if the database is initializing, return the initializing component
   if (isInitializing) {
     return (
       <div style={{
@@ -61,6 +67,7 @@ export function DatabaseInitializer({ children, onReady, onError }: DatabaseInit
     );
   }
 
+  // if the database has an error, return the error component
   if (error) {
     return (
       <div style={{

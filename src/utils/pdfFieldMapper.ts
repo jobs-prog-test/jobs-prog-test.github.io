@@ -77,7 +77,31 @@ export function mapToPDFFields(data: any[], crewInfo?: any, signature?: { name: 
     
     // Use the exact field names from your CSV
     fields[`NAME OF EMPLOYEERow${rowNum}`] = row.name || '';
-    fields[`ClASS IF CATIONRow${rowNum}`] = row.classification || '';
+    
+    // Try multiple field name variations for classification
+    const classificationFieldVariations = [
+      `ClASS IF CATIONRow${rowNum}`,
+      `CtASSIF CATIONRow${rowNum}`,
+      `CLASSIFICATIONRow${rowNum}`,
+      `CLASSRow${rowNum}`,
+      `CATIONRow${rowNum}`
+    ];
+    
+    // Fill all field name variations to ensure data appears in the correct field
+    classificationFieldVariations.forEach(fieldName => {
+      fields[fieldName] = row.classification || '';
+    });
+
+    // Debug: Log classification values being mapped
+    console.log(`🔍 pdfFieldMapper: PDF Field Mapping - Row ${rowNum}:`, {
+      fieldName: classificationFieldVariations[0],
+      fieldVariations: classificationFieldVariations,
+      classification: row.classification,
+      classificationLength: row.classification?.length || 0,
+      name: row.name,
+      rowData: row,
+      filledFields: classificationFieldVariations.map(field => ({ field, value: row.classification || '' }))
+    });
 
     // Day 1
     if (row.days?.[0]) {

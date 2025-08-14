@@ -29,17 +29,20 @@ export class StableCTRService {
     });
   }
 
+  // get a record by date range
   async getRecord(dateRange: string): Promise<CTRRecord | undefined> {
     const db = await databaseManager.getDatabase();
     return await db.ctrRecords.get(dateRange);
   }
 
+  // get all date ranges
   async getAllDateRanges(): Promise<string[]> {
     const db = await databaseManager.getDatabase();
     const records = await db.ctrRecords.toArray();
     return records.map(record => record.dateRange).sort();
   }
 
+  // delete a record by date range
   async deleteRecord(dateRange: string): Promise<void> {
     const db = await databaseManager.getDatabase();
     
@@ -54,6 +57,7 @@ export class StableCTRService {
     await db.ctrRecords.delete(dateRange);
   }
 
+  // get database stats
   async getDatabaseStats(): Promise<{
     totalRecords: number;
     totalChanges: number;

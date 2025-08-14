@@ -1,3 +1,4 @@
+// handles the dexie database
 import Dexie, { Table } from 'dexie';
 import { CrewMember, CrewInfo, TableData } from '../types/CTRTypes';
 
@@ -11,6 +12,7 @@ export interface CTRRecord {
   version: number;
 }
 
+// interface for the change log
 export interface ChangeLog {
   id?: number;
   dateRange: string;
@@ -43,6 +45,7 @@ export class DexieDatabase extends Dexie {
     timestamp: number 
   }, number>;
 
+  // constructor for the dexie database
   constructor() {
     super('CTRDatabase');
     
@@ -69,12 +72,14 @@ export class DexieDatabase extends Dexie {
     console.log('Database schema defined');
 
     // Add hooks for change tracking
+    // hook for creating a record
     this.ctrRecords.hook('creating', (primKey, obj: any) => {
       obj.lastModified = Date.now();
       obj.version = 1;
       return obj;
     });
 
+    // hook for updating a record
     this.ctrRecords.hook('updating', (modifications: any, primKey, obj: any) => {
       modifications.lastModified = Date.now();
       modifications.version = (obj.version || 0) + 1;
@@ -98,6 +103,7 @@ export class CTRDataServiceWithTracking {
     this.initPromise = this.initDB();
   }
 
+  // initialize the database
   private async initDB() {
     if (!this.db) {
       this.db = new DexieDatabase();
@@ -108,6 +114,7 @@ export class CTRDataServiceWithTracking {
   private async ensureDB() {
     console.log('ensureDB called, initPromise:', !!this.initPromise, 'db:', !!this.db);
     
+    // If the init promise is set, wait for it to complete
     if (this.initPromise) {
       console.log('Waiting for initPromise...');
       await this.initPromise;
@@ -115,12 +122,14 @@ export class CTRDataServiceWithTracking {
       console.log('initPromise completed');
     }
     
+    // If the database is not initialized, initialize it
     if (!this.db) {
       console.log('Database not initialized, calling initDB...');
       await this.initDB();
       console.log('initDB completed, db:', !!this.db);
     }
     
+    // If the database is still not initialized, throw an error
     if (!this.db) {
       console.error('Database still not initialized after initDB');
       throw new Error('Database failed to initialize');
@@ -262,6 +271,7 @@ export class CTRDataServiceWithTracking {
     try {
       const pendingChanges = await this.db!.pendingChanges.toArray();
       
+      // save each pending change
       for (const pending of pendingChanges) {
         const record = await this.db!.ctrRecords.get(pending.dateRange);
         if (record) {
@@ -283,11 +293,12 @@ export class CTRDataServiceWithTracking {
     }
   }
 
-  // Add pending change for auto-save
+  // Function to add pending change for auto-save
   async addPendingChange(dateRange: string, changes: Partial<CTRRecord>): Promise<void> {
     await this.ensureDB();
     
     try {
+      // adds the pending change
       await this.db!.pendingChanges.add({
         dateRange,
         changes,
@@ -298,7 +309,7 @@ export class CTRDataServiceWithTracking {
     }
   }
 
-  // Get pending changes count
+  // Function to get the pending changes count
   async getPendingChangesCount(): Promise<number> {
     await this.ensureDB();
     
@@ -310,10 +321,11 @@ export class CTRDataServiceWithTracking {
     }
   }
 
-  // Clear all pending changes
+  // Function to clear all pending changes
   async clearPendingChanges(): Promise<void> {
     await this.ensureDB();
     
+    // clears all pending changes
     try {
       await this.db!.pendingChanges.clear();
     } catch (error) {
@@ -338,7 +350,7 @@ export class CTRDataServiceWithTracking {
     }
   }
 
-  // Get database statistics
+  // Function to get database statistics
   async getDatabaseStats(): Promise<{
     totalRecords: number;
     totalChanges: number;
@@ -348,17 +360,20 @@ export class CTRDataServiceWithTracking {
     await this.ensureDB();
     
     try {
+      // retrieves the total records, total changes, and pending changes
       const [totalRecords, totalChanges, pendingChanges] = await Promise.all([
         this.db!.ctrRecords.count(),
         this.db!.changeLog.count(),
         this.db!.pendingChanges.count()
       ]);
 
+      // retrieves the last modified record
       const lastRecord = await this.db!.ctrRecords
         .orderBy('lastModified')
         .reverse()
         .first();
 
+      // returns above
       return {
         totalRecords,
         totalChanges,

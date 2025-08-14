@@ -1,77 +1,222 @@
-# PWA Proof of Concept -> Full Production PWA (Name still TBD)
+# CTR (Crew Time Report) PWA - Firefighting Operations Management
 
 ## Description 
-The PWA proof of concept is built to provide the full suite of capabilities from a PWA to support Firefighting operations in adverse conditions. 
-It provides a UI to allow the user full control over the process of inputting Firefighter information and exporting that information in various ways.
-This allows for auto-filled PDFs and Excel spreadsheets to allow rapid printing in the field and easier documentation.
+A comprehensive Progressive Web App (PWA) designed specifically for firefighting operations in adverse conditions. This application provides a complete suite of tools for managing crew time reports, personnel information, and documentation in the field with full offline capabilities.
 
-## Features
-- Progressive Web App (PWA) capabilities for offline functionality
-- User-friendly interface for Firefighter information management
-- Table generation from imported files (CSV and Excel currently supported)
-- PDF generation with auto-filled forms
-- Excel spreadsheet export functionality
-- Responsive design for various device sizes
-- Offline data persistence
-- Quick printing capabilities in field conditions
+The app enables firefighting crews to:
+- Input and manage firefighter information in real-time
+- Generate and print professional CTR forms
+- View and annotate PDF documents
+- Capture digital signatures
+- Export data to Excel spreadsheets
+- Work completely offline with data persistence
 
-## Installation Steps for Local Machine
-1. Install node.js via installer
-   - Download from [Node.js official website](https://nodejs.org/)
-   - Choose the LTS version for stability
-2. Download the attached files into a directory
-3. Run "npm install" to install dependencies
-4. Run "npm run dev" to run a development build for this PWA
-   - This will start the development server with hot-reloading
-   - Access the app at `http://localhost:3000`
-5. For production deployment, run "npm run build" to create a production build
+## Key Features
+
+### Core Functionality
+- **Crew Time Report (CTR) Management**: Complete CTR form generation with auto-fill capabilities
+- **Progressive Web App (PWA)**: Full offline functionality with service worker caching
+- **Responsive Design**: Optimized for desktop, tablet, and mobile devices
+- **Data Persistence**: IndexedDB storage for offline data management
+
+### Document Management
+- **PDF Generation**: Auto-filled CTR forms with professional formatting
+- **PDF Viewer**: Built-in PDF viewing and annotation capabilities
+- **Digital Signatures**: Capture and embed signatures in documents
+- **Excel Export**: Export crew data to Excel spreadsheets
+- **Print Support**: Direct printing with optimized layouts
+
+### User Experience
+- **Auto-Save**: Automatic data saving with status indicators
+- **Undo/Redo**: Full undo/redo functionality for data changes
+- **Drag & Drop**: Intuitive drag-and-drop interface for data management
+- **Calendar Integration**: Date selection and navigation
+- **Real-time Validation**: Form validation and error handling
+
+### Field Operations
+- **Offline-First**: Works without internet connection
+- **Quick Printing**: Optimized print layouts for field conditions
+- **Data Import**: Support for CSV and Excel file imports
+- **Backup & Restore**: Data backup and recovery capabilities
+
+## Installation & Setup
+
+### Prerequisites
+- Node.js (LTS version recommended)
+- npm or yarn package manager
+
+### Local Development Setup
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd carouseltest
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Build for production**
+   ```bash
+   npm run build
+   ```
+
+### PWA Installation
+- **Desktop**: Click the install prompt in the browser address bar
+- **Mobile**: Add to home screen via browser menu
+- **Offline**: App works offline once installed
 
 ## Usage Guide
-1. **Starting the Application**
-   - Launch the application using `npm run dev` for development
-   - Access the application through your web browser
-   - The app will work offline once installed as a PWA
 
-2. **Managing Firefighter Information**
-   - Navigate to the main dashboard
-   - Use the input forms to enter Firefighter details
-   - Save information for offline access
-   - Export data in various formats as needed
+### Getting Started
+1. **Launch the Application**
+   - Open the app in your browser
+   - Install as PWA for offline access
 
-3. **Exporting Data**
-   - Select the desired export format (PDF/Excel - PDF and Excel Templates provided with mapping)
-   - Choose the data to include in the export
-   - Generate and download the formatted document
+2. **Create a New CTR**
+   - Select dates using the calendar interface
+   - Enter crew information and fire details
+   - Add personnel with classifications and time entries
 
-## Tech Stack
-- **Frontend**
-  - TypeScript
-  - HTML5
-  - CSS3
+3. **Manage Data**
+   - Use the main table interface for data entry
+   - Auto-save ensures no data loss
+   - Navigate between different dates using Previous/Next buttons
 
-- **Backend**
-  - Node.js
+### Document Operations
+1. **Generate CTR Forms**
+   - Click "Send to Printer" to generate formatted CTR
+   - Preview and print directly from the browser
+   - Use the back and print buttons in the preview window
 
-- **Data Processing**
-  - XLSX for Excel file handling
-  - PDF generation libraries
+2. **PDF Operations**
+   - View PDFs with built-in viewer
+   - Add annotations and drawings
+   - Capture and embed digital signatures
+   - Download or print PDFs
+
+3. **Data Export**
+   - Export to Excel with proper formatting
+   - Import data from CSV/Excel files
+   - Backup and restore data
+
+### Advanced Features
+- **Undo/Redo**: Use the undo button to revert changes
+- **Auto-Save**: Data is automatically saved with status indicators
+- **Offline Mode**: Continue working without internet connection
+- **Print Optimization**: Optimized layouts for field printing
+
+## Technical Stack
+
+### Frontend
+- **React 18** with TypeScript
+- **Vite** for build tooling
+- **Dexie.js** for IndexedDB management
+- **React Beautiful DnD** for drag-and-drop
+- **React PDF** for PDF viewing
+
+### PDF & Document Processing
+- **PDF.js** for PDF rendering
+- **PDF-lib** for PDF manipulation
+- **jsPDF** for PDF generation
+- **ExcelJS** for Excel file handling
+
+### PWA Features
+- **Service Worker** for offline caching
+- **Web App Manifest** for app installation
+- **IndexedDB** for offline data storage
+- **Push Notifications** (planned)
+
+### Development Tools
+- **TypeScript** for type safety
+- **ESLint** for code quality
+- **GitHub Actions** for CI/CD
+- **GitHub Pages** for deployment
+
+## Project Structure
+```
+src/
+├── components/          # React components
+│   ├── MainTable.tsx   # Main CTR interface
+│   ├── PDFViewer.tsx   # PDF viewing component
+│   ├── PrintableTable.tsx # Print generation
+│   └── ...
+├── db/                 # Database management
+├── hooks/              # Custom React hooks
+├── styles/             # CSS and styling
+├── types/              # TypeScript type definitions
+├── utils/              # Utility functions
+└── ...
+```
+
+## Deployment
+
+### GitHub Pages Deployment
+The app is automatically deployed to GitHub Pages via GitHub Actions:
+
+1. **Push to main branch** triggers automatic deployment
+2. **Build process** creates optimized production build
+3. **Deployment** to `https://joonk4ng.github.io`
+
+### Manual Deployment
+```bash
+npm run build
+npm run deploy
+```
 
 ## Development
-- The project uses TypeScript for type safety and better development experience
-- Follow the existing code structure and patterns
-- Ensure all new features maintain PWA compatibility
 
-## Contributing
+### Code Style
+- Follow TypeScript best practices
+- Use functional components with hooks
+- Maintain PWA compatibility
+- Ensure responsive design
+
+### Adding Features
 1. Fork the repository
 2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+3. Implement changes with proper testing
+4. Submit a pull request
 
-## Support
-For support and questions, please contact me at joonhyungkang1@gmail.com
+### Testing
+- Test offline functionality
+- Verify PWA installation
+- Check responsive design
+- Validate print layouts
+
+## Support & Contributing
+
+### Getting Help
+- **Email**: joonhyungkang1@gmail.com
+- **Issues**: Use GitHub Issues for bug reports
+- **Documentation**: Check the docs folder for detailed guides
+
+### Contributing
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## Roadmap
-- [ ] Add specific features planned for future development
-- [ ] List upcoming improvements
-- [ ] Currently only Excel spreadsheets formatted in a specific way will format properly
+
+### Planned Features
+- [ ] Push notifications for updates
+- [ ] Enhanced PDF annotation tools
+- [ ] Multi-language support
+- [ ] Advanced reporting features
+- [ ] Integration with external systems
+- [ ] Mobile app versions (iOS/Android)
+
+### Current Limitations
+- Excel import requires specific formatting
+- PDF annotations are basic (enhancement planned)
+- Limited to single-user operations
+
+## License
+This project is developed for firefighting operations and emergency management use.
+
+---
+
+**Note**: This application is designed for field use in emergency situations. Always ensure you have backup documentation methods available.

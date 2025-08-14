@@ -26,6 +26,7 @@ import { AutoSaveStatus } from './AutoSaveStatus';
 import '../styles/AutoSaveStatus.css';
 import { ThemeToggle } from './ThemeToggle';
 import { storeImage, getImage, ImageData } from '../utils/imageStorage';
+import { parseCrewParams, hasCrewParams, clearUrlParams, validateCrewParams, decodeUrlParam, parseCrewData } from '../utils/urlParams';
 
 
 
@@ -241,6 +242,7 @@ export default function MainTable() {
       field,
       dayIdx,
       newValue,
+      newValueLength: newValue.length,
       selectedDate,
       isSelectedDateSet: !!selectedDate
     });
@@ -290,6 +292,15 @@ export default function MainTable() {
     } else {
       // Handle name and classification changes
       if (field === 'name' || field === 'classification') {
+        // Add debugging for classification changes
+        if (field === 'classification') {
+          console.log(`🔄 Classification change for row ${rowIdx}:`, {
+            oldValue: newData[rowIdx][field],
+            newValue: newValue,
+            newValueLength: newValue.length
+          });
+        }
+        
         (newData[rowIdx] as any)[field] = newValue;
 
         // Handle FFT time copying
@@ -745,10 +756,67 @@ export default function MainTable() {
       // Set the pdfs by date range
       setPdfsByDateRange(pdfMapping);
 
+      // Check for URL parameters and autofill if present
+      if (hasCrewParams()) {
+        const crewParams = parseCrewParams();
+        const validation = validateCrewParams(crewParams);
+        
+        if (validation.isValid) {
+          // Autofill crew information from URL parameters
+          const updatedCrewInfo = {
+            ...crewInfo,
+            crewName: crewParams.crewName ? decodeUrlParam(crewParams.crewName) : crewInfo.crewName,
+            crewNumber: crewParams.crewNumber ? decodeUrlParam(crewParams.crewNumber) : crewInfo.crewNumber,
+            fireName: crewParams.fireName ? decodeUrlParam(crewParams.fireName) : crewInfo.fireName,
+            fireNumber: crewParams.fireNumber ? decodeUrlParam(crewParams.fireNumber) : crewInfo.fireNumber,
+          };
+          
+          setCrewInfo(updatedCrewInfo);
+          
+          // Parse and add crew members if provided
+          if (crewParams.crewData) {
+            const crewMembers = parseCrewData(crewParams.crewData);
+            if (crewMembers.length > 0) {
+              // Convert crew members to the app's format
+              const crewData = crewMembers.map(member => ({
+                name: member.name,
+                classification: member.classification,
+                days: days.map(day => ({
+                  date: day,
+                  on: '',
+                  off: ''
+                }))
+              }));
+              
+              setData(crewData);
+              showNotification(`${crewMembers.length} crew members loaded from URL parameters`, 'success');
+            }
+          }
+          
+          // If a date is provided, select it
+          if (crewParams.date) {
+            const decodedDate = decodeUrlParam(crewParams.date);
+            await handleDateSelect(decodedDate);
+            showNotification('Crew information loaded from URL parameters', 'success');
+          } else {
       // If there are date ranges, select the first one
       if (dateRanges.length > 0) {
         const firstDateRange = dateRanges[0];
         await handleDateSelect(firstDateRange);
+            }
+          }
+          
+          // Clear URL parameters after processing
+          clearUrlParams();
+        } else {
+          showNotification(`Invalid URL parameters: ${validation.errors.join(', ')}`, 'error');
+        }
+      } else {
+        // If there are date ranges, select the first one
+        if (dateRanges.length > 0) {
+          const firstDateRange = dateRanges[0];
+          await handleDateSelect(firstDateRange);
+        }
       }
     };
     initializeApp();
@@ -1860,7 +1928,7 @@ export default function MainTable() {
                 onChange={() => handleCheckboxChange('noMeals')}
                 id="no-meals-checkbox"
               />
-              <label htmlFor="no-meals-checkbox">No Meals</label>
+              <label htmlFor="no-meals-checkbox">Self Sufficient - No Lodging Provided</label>
             </div>
 
             <div className="checkbox-option">
@@ -2025,6 +2093,148 @@ export default function MainTable() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="ctr-table-container">
+        <table className="ctr-table">
+          <thead>
+            <tr>
+              <th className="ctr-th name" rowSpan={2}>NAME</th>
+              <th className="ctr-th class" rowSpan={2}>JOB TITLE</th>
+              {days.map((date, i) => (
+                <th className="ctr-th date" colSpan={2} key={i}>
+                  DATE<br />
+                  <input
+                    className="ctr-input ctr-date"
+                    type="date"
+                    value={date}
+                    onChange={e => handleHeaderDateChange(e, i)}
+                  />
+                </th>
+              ))}
+              <th className="ctr-th" rowSpan={2}></th>
+            </tr>
+            <tr>
+              {days.map((_, i) => (
+                <React.Fragment key={i}>
+                  <th className="ctr-th">ON</th>
+                  <th className="ctr-th">OFF</th>
+                </React.Fragment>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: 20 }).map((_, idx) => {
+              const row = data[idx] || {
+                name: '',
+                classification: '',
+                days: days.map(date => ({ date, on: '', off: '' }))
+              };
+              return (
+                <tr key={idx} className="ctr-tr">
+                  <td className="ctr-td name-col">
+                    {editingCell?.row === idx && editingCell?.field === 'name' ? (
+                      <input
+                        className="ctr-input"
+                        value={row.name || ''}
+                        onChange={e => handleCellEdit(e, idx, 'name')}
+                        onBlur={e => handleCellBlur('name', e.target.value, idx)}
+                        autoFocus
+                      />
+                    ) : (
+                      <div
+                        className="ctr-cell-content"
+                        onDoubleClick={!isTouchDevice ? () => handleCellDoubleClick(idx, 'name') : undefined}
+                        onClick={isTouchDevice ? () => handleCellDoubleClick(idx, 'name') : undefined}
+                      >
+                        {row.name
+                          ? row.name
+                              .split(/(?<=[a-z])(?=[A-Z])/)
+                              .map((part, i) => (
+                                <span key={i} style={{ display: 'block', wordBreak: 'break-word' }}>{part}</span>
+                              ))
+                          : ''}
+                      </div>
+                    )}
+                  </td>
+                  <td className="ctr-td class-col">
+                    {editingCell?.row === idx && editingCell?.field === 'classification' ? (
+                      <input
+                        className="ctr-input"
+                        value={row.classification}
+                        onChange={e => handleCellEdit(e, idx, 'classification')}
+                        onBlur={e => handleCellBlur('classification', e.target.value, idx)}
+                        maxLength={10}
+                        autoFocus
+                      />
+                    ) : (
+                      <div
+                        className="ctr-cell-content"
+                        onDoubleClick={!isTouchDevice ? () => handleCellDoubleClick(idx, 'classification') : undefined}
+                        onClick={isTouchDevice ? () => handleCellDoubleClick(idx, 'classification') : undefined}
+                      >
+                        {row.classification}
+                      </div>
+                    )}
+                  </td>
+                  {row.days.map((day, dayIdx) => (
+                    <React.Fragment key={dayIdx}>
+                      <td className="ctr-td time-col">
+                        {editingCell?.row === idx && editingCell?.field === 'on' && editingCell?.dayIdx === dayIdx ? (
+                          <input
+                            className="ctr-input ctr-on"
+                            value={day.on}
+                            onChange={e => handleCellEdit(e, idx, 'on', dayIdx)}
+                            onBlur={e => handleCellBlur('on', e.target.value, idx)}
+                            autoFocus
+                          />
+                        ) : (
+                          <div
+                            className="ctr-cell-content"
+                            onDoubleClick={!isTouchDevice ? () => handleCellDoubleClick(idx, 'on', dayIdx) : undefined}
+                            onClick={isTouchDevice ? () => handleCellDoubleClick(idx, 'on', dayIdx) : undefined}
+                          >
+                            {day.on}
+                          </div>
+                        )}
+                      </td>
+                      <td className="ctr-td time-col">
+                        {editingCell?.row === idx && editingCell?.field === 'off' && editingCell?.dayIdx === dayIdx ? (
+                          <input
+                            className="ctr-input ctr-off"
+                            value={day.off}
+                            onChange={e => handleCellEdit(e, idx, 'off', dayIdx)}
+                            onBlur={e => handleCellBlur('off', e.target.value, idx)}
+                            autoFocus
+                          />
+                        ) : (
+                          <div
+                            className="ctr-cell-content"
+                            onDoubleClick={!isTouchDevice ? () => handleCellDoubleClick(idx, 'off', dayIdx) : undefined}
+                            onClick={isTouchDevice ? () => handleCellDoubleClick(idx, 'off', dayIdx) : undefined}
+                          >
+                            {day.off}
+                          </div>
+                        )}
+                      </td>
+                    </React.Fragment>
+                  ))}
+                  <td className="ctr-td">
+                    {data[idx] && (
+                      <button
+                        className="ctr-btn remove-btn"
+                        style={{ background: '#d32f2f', padding: '2px 6px' }}
+                        onClick={() => handleDelete(idx)}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
       {showCalendar && (
